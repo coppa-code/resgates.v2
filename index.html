@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="light">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF--8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard de Resgate de Animais Silvestres - COPPA</title>
     
@@ -108,7 +108,8 @@
             .grid-item-locations { grid-column: 1 / 3; }
             .grid-item-species { grid-column: 3 / -1; }
             .grid-item-chart-horario { grid-column: 1 / 3; } 
-            .grid-item-timeline { grid-column: 3 / -1; }
+            .grid-item-correlation-chart { grid-column: 3 / -1; }
+            .grid-item-timeline { grid-column: 1 / -1; }
         }
 
         .card {
@@ -191,7 +192,6 @@
         .timeline-animal { font-weight: 500; }
         .timeline-location { font-size: 0.875rem; color: var(--text-secondary); }
 
-        /* Estilo para o selo de quantidade na timeline */
         .timeline-quantity-badge {
             display: inline-block;
             font-size: 0.75rem;
@@ -243,11 +243,54 @@
             .date-inputs { grid-template-columns: 1fr; }
             .date-inputs .btn { width: 100%; }
         }
+
+        /* --- INÍCIO: ESTILOS PARA O ESTADO DE CARREGAMENTO --- */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-primary); /* Usa a cor de fundo do tema */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
+            transition: opacity 0.5s ease;
+        }
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .spinner {
+            border: 5px solid var(--border-color);
+            border-top: 5px solid var(--accent-primary);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        .loading-text {
+            margin-top: 1rem;
+            font-size: 1.125rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* --- FIM: ESTILOS PARA O ESTADO DE CARREGAMENTO --- */
     </style>
 </head>
 
 <body>
 
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Carregando dados...</div>
+    </div>
     <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">
         <span id="theme-icon">🌙</span>
     </button>
@@ -367,6 +410,13 @@
                 </div>
             </div>
 
+            <div class="grid-item-correlation-chart card">
+                <h3 class="card-title">Correlação: Horário vs. Tipo de Animal</h3>
+                <div class="chart-container">
+                    <canvas id="correlationChart"></canvas>
+                </div>
+            </div>
+
             <div class="grid-item-timeline card">
                 <h3 class="card-title">Últimos Resgates Registrados</h3>
                 <div id="timeline" class="timeline"></div>
@@ -388,17 +438,17 @@
     // 1. CONFIGURAÇÕES E VARIÁVEIS GLOBAIS
     // ==========================================================================
     const animalConfig = {
-        serpente:     { icon: '🐍', name: 'Serpentes',      color: '#ef4444' },
-        iguana:     { icon: '🦎', name: 'Iguanas',        color: '#22c55e' },
-        teiu:       { icon: '🦎', name: 'Teiús',          color: '#f97316' },
-        jabuti:     { icon: '🐢', name: 'Jabutis',        color: '#14b8a6' },
+        serpente:     { icon: '🐍', name: 'Serpentes',        color: '#ef4444' },
+        iguana:       { icon: '🦎', name: 'Iguanas',          color: '#22c55e' },
+        teiu:         { icon: '🦎', name: 'Teiús',            color: '#f97316' },
+        jabuti:       { icon: '🐢', name: 'Jabutis',          color: '#14b8a6' },
         ave_rapina:   { icon: '🦅', name: 'Aves de Rapina',   color: '#3b82f6' },
         passeriforme: { icon: '🐦', name: 'Passeriformes',    color: '#0ea5e9' },
         ave_outras:   { icon: '🕊️', name: 'Outras Aves',      color: '#6366f1' },
-        sariguê:    { icon: '🦡', name: 'Sariguês',         color: '#a855f7' },
-        primata:    { icon: '🐒', name: 'Primatas',       color: '#d946ef' },
+        sariguê:      { icon: '🦡', name: 'Sariguês',         color: '#a855f7' },
+        primata:      { icon: '🐒', name: 'Primatas',         color: '#d946ef' },
         mamifero:     { icon: '🐾', name: 'Outros Mamíferos', color: '#881337' },
-        outros:     { icon: '❓', name: 'Outros',           color: '#64748b' }
+        outros:       { icon: '❓', name: 'Outros',           color: '#64748b' }
     };
     let rescueData = [];
     let filteredData = [];
@@ -414,7 +464,7 @@
         console.log('🚀 Dashboard Profissional Inicializado');
         loadSavedTheme();
         setupEventListeners();
-        initializeFirebaseConnection();
+        initializeFirebaseConnection(); // Função principal que agora gerencia o carregamento
     }
 
     function setupEventListeners() {
@@ -423,19 +473,30 @@
         });
     }
 
-    function initializeFirebaseConnection() {
-        loadSampleData(); 
-        setTimeout(() => {
-            if (typeof window.db !== 'undefined') {
-                console.log('🔥 Conectando ao Firebase...');
-                loadFirebaseData().catch(error => {
-                    console.warn('⚠️ Erro ao carregar do Firebase, usando dados de exemplo:', error);
-                });
-            } else {
-                console.log('💾 Firebase não disponível, usando dados de exemplo.');
+    // --- INÍCIO: LÓGICA DE CARREGAMENTO DE DADOS REESTRUTURADA ---
+    async function initializeFirebaseConnection() {
+        const loadingOverlay = document.getElementById('loading-overlay');
+        try {
+            if (typeof window.db === 'undefined' || window.firebaseError) {
+                throw new Error('Firebase não está disponível ou falhou na inicialização.');
             }
-        }, 1500);
+            console.log('🔥 Conectando ao Firebase e carregando dados...');
+            await loadFirebaseData();
+            console.log('✅ Dados do Firebase carregados com sucesso!');
+        } catch (error) {
+            console.warn(`⚠️ Erro ao carregar do Firebase: ${error.message}. Usando dados de exemplo como fallback.`);
+            loadSampleData(); // Fallback para dados de exemplo
+        } finally {
+            console.log('📊 Renderizando dashboard com os dados disponíveis...');
+            setPeriod('all'); // Renderiza todos os componentes com os dados corretos
+            // Adiciona um pequeno delay para garantir que a UI tenha tempo de renderizar antes de esconder o spinner
+            setTimeout(() => {
+                loadingOverlay.classList.add('hidden');
+            }, 300);
+            console.log('✨ Dashboard pronto!');
+        }
     }
+    // --- FIM: LÓGICA DE CARREGAMENTO DE DADOS REESTRUTURADA ---
 
     // ==========================================================================
     // 3. MANIPULAÇÃO DE DADOS
@@ -448,7 +509,6 @@
         return `${year}-${month}-${day}`;
     }
     
-    // DADOS DE EXEMPLO ATUALIZADOS COM O CAMPO 'quantity'
     const initialData = [
         { animal: 'serpente', species: 'Jiboia', date: getTodayLocalString(), time: '09:15', location: 'Salvador - Pituba', pelotao: '1º Pelotão', areaType: 'residencial', quantity: 3 },
         { animal: 'serpente', species: 'Jararaca', date: new Date(new Date().setDate(new Date().getDate()-1)).toISOString().split('T')[0], time: '14:30', location: 'Salvador - Itapuã', pelotao: '2º Pelotão', areaType: 'residencial', quantity: 1 },
@@ -461,17 +521,23 @@
     ];
 
     function loadSampleData() {
+        // Esta função agora APENAS carrega os dados na variável, sem renderizar.
         rescueData = initialData.map((item, index) => ({ id: `sample_${index}`, ...item }));
-        setPeriod('all');
     }
 
     async function loadFirebaseData() {
+        // Esta função agora APENAS busca e carrega os dados, sem renderizar.
         const { getDocs, collection } = window.firestore;
         const querySnapshot = await getDocs(collection(window.db, 'resgates'));
         const firebaseData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
         if (firebaseData.length > 0) {
             rescueData = firebaseData;
-            setPeriod('all');
+        } else {
+            // Se o Firebase estiver vazio, o dashboard começará com "0" após o loading,
+            // o que é o comportamento correto.
+            console.log('ℹ️ Conexão bem-sucedida, mas não há registros no Firebase.');
+            rescueData = []; 
         }
     }
     
@@ -545,7 +611,6 @@
     }
 
     function updateTotalCount() {
-        // AJUSTADO: Soma as quantidades em vez de contar os registros
         const totalAnimals = filteredData.reduce((sum, rescue) => sum + (rescue.quantity || 1), 0);
         document.getElementById('total-count').textContent = totalAnimals;
         const activeBtn = document.querySelector('.filter-btn.active');
@@ -554,7 +619,6 @@
     }
 
     function updateStatsGrid() {
-        // AJUSTADO: Soma as quantidades por tipo de animal
         const counts = filteredData.reduce((acc, rescue) => {
             acc[rescue.animal] = (acc[rescue.animal] || 0) + (rescue.quantity || 1);
             return acc;
@@ -575,16 +639,13 @@
     function updateLocationStats() {
         const cityCounts = {};
         const salvadorNeighborhoods = {};
-        // AJUSTADO: Usa o registro completo para acessar a quantidade
         filteredData.forEach(rescue => {
             if (!rescue.location) return;
             const parts = rescue.location.split(' - ').map(p => p.trim());
             const city = normalizeCapitalization(parts[0]);
-            // AJUSTADO: Soma a quantidade
             cityCounts[city] = (cityCounts[city] || 0) + (rescue.quantity || 1);
             if (city.toLowerCase() === 'salvador' && parts.length > 1) {
                 const neighborhood = normalizeCapitalization(parts[1]);
-                // AJUSTADO: Soma a quantidade
                 salvadorNeighborhoods[neighborhood] = (salvadorNeighborhoods[neighborhood] || 0) + (rescue.quantity || 1);
             }
         });
@@ -605,7 +666,6 @@
 
     function updateSpeciesInventory() {
         const inventory = {};
-        // AJUSTADO: Usa o registro completo para acessar a quantidade
         filteredData.forEach(rescue => {
             const type = (rescue.animal && animalConfig[rescue.animal]) ? rescue.animal : 'outros';
             
@@ -616,7 +676,6 @@
             const speciesSource = (type === 'outros' && rescue.otherAnimal) ? rescue.otherAnimal : rescue.species;
             const speciesName = normalizeSpeciesName(speciesSource);
             
-            // AJUSTADO: Soma a quantidade da espécie
             inventory[type][speciesName] = (inventory[type][speciesName] || 0) + (rescue.quantity || 1);
         });
 
@@ -675,10 +734,10 @@
         createPelotaoChart(colors);
         createAreaTypeChart(colors);
         createHorarioChart(colors);
+        createCorrelationChart(colors);
     }
 
     function createAnimalDistributionChart(colors) {
-        // AJUSTADO: Soma as quantidades por tipo
         const counts = filteredData.reduce((acc, rescue) => {
             acc[rescue.animal] = (acc[rescue.animal] || 0) + (rescue.quantity || 1);
             return acc;
@@ -696,7 +755,6 @@
     }
 
     function createPeriodTrendChart(colors) {
-        // AJUSTADO: Soma as quantidades por data
         const counts = filteredData.reduce((acc, rescue) => {
             acc[rescue.date] = (acc[rescue.date] || 0) + (rescue.quantity || 1);
             return acc;
@@ -720,7 +778,6 @@
     }
 
     function createPelotaoChart(colors) {
-        // AJUSTADO: Soma as quantidades por pelotão
         const pelotaoCounts = filteredData.reduce((acc, rescue) => {
             if (rescue.pelotao) {
                 acc[rescue.pelotao] = (acc[rescue.pelotao] || 0) + (rescue.quantity || 1);
@@ -762,11 +819,10 @@
     function createAreaTypeChart(colors) {
         const snakeData = filteredData.filter(r => r.animal === 'serpente');
         
-        // AJUSTADO: Soma as quantidades por tipo de área
         const areaCounts = snakeData.reduce((acc, rescue) => {
             const type = rescue.areaType || 'nao_informado';
             if (type !== 'nao_informado') {
-              acc[type] = (acc[type] || 0) + (rescue.quantity || 1);
+                acc[type] = (acc[type] || 0) + (rescue.quantity || 1);
             }
             return acc;
         }, {});
@@ -793,7 +849,6 @@
 
     function createHorarioChart(colors) {
         const hourlyCounts = Array(24).fill(0);
-        // AJUSTADO: Soma as quantidades por hora
         filteredData.forEach(rescue => {
             if (rescue.time) {
                 try {
@@ -847,6 +902,73 @@
         });
     }
 
+    function createCorrelationChart(colors) {
+        // 1. Process data: group by hour, then by animal type
+        const hourlyAnimalCounts = {};
+        filteredData.forEach(rescue => {
+            if (rescue.time) {
+                try {
+                    const hour = parseInt(rescue.time.split(':')[0], 10);
+                    if (!isNaN(hour) && hour >= 0 && hour < 24) {
+                        if (!hourlyAnimalCounts[hour]) hourlyAnimalCounts[hour] = {};
+                        const animal = rescue.animal || 'outros';
+                        hourlyAnimalCounts[hour][animal] = (hourlyAnimalCounts[hour][animal] || 0) + (rescue.quantity || 1);
+                    }
+                } catch (e) { /* ignore invalid time */ }
+            }
+        });
+
+        // 2. Calculate percentages for each hour
+        const hourlyPercentages = {};
+        for (const hour in hourlyAnimalCounts) {
+            const totalForHour = Object.values(hourlyAnimalCounts[hour]).reduce((sum, count) => sum + count, 0);
+            if (totalForHour > 0) {
+                hourlyPercentages[hour] = {};
+                for (const animal in hourlyAnimalCounts[hour]) {
+                    hourlyPercentages[hour][animal] = (hourlyAnimalCounts[hour][animal] / totalForHour) * 100;
+                }
+            }
+        }
+
+        // 3. Prepare datasets for Chart.js
+        const datasets = Object.keys(animalConfig).map(animalKey => {
+            const data = Array.from({length: 24}, (_, i) => {
+                return (hourlyPercentages[i] && hourlyPercentages[i][animalKey]) ? hourlyPercentages[i][animalKey] : 0;
+            });
+            return {
+                label: animalConfig[animalKey].name,
+                data: data,
+                backgroundColor: animalConfig[animalKey].color,
+            };
+        }).filter(dataset => dataset.data.some(d => d > 0));
+
+        // 4. Create the chart
+        const labels = Array.from({length: 24}, (_, i) => `${String(i).padStart(2, '0')}h`);
+        const ctx = document.getElementById('correlationChart').getContext('2d');
+        charts.correlation = new Chart(ctx, {
+            type: 'bar',
+            data: { labels, datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: true, grid: { color: colors.grid } },
+                    y: {
+                        stacked: true, grid: { color: colors.grid },
+                        max: 100,
+                        ticks: { callback: value => value + '%' }
+                    }
+                }
+            }
+        });
+    }
 
     // ==========================================================================
     // 7. LÓGICA ESPECÍFICA (MODAIS, FILTROS ANINHADOS)
@@ -855,7 +977,6 @@
         const listContainer = document.getElementById('snake-neighborhoods-list');
         const snakeRescues = filteredData.filter(r => r.animal === 'serpente');
         
-        // AJUSTADO: Soma as quantidades por bairro
         const neighborhoodCounts = snakeRescues.reduce((acc, rescue) => {
             if (rescue.location && rescue.location.toLowerCase().startsWith('salvador')) {
                 const parts = rescue.location.split(' - ');
@@ -893,7 +1014,6 @@
         if (!species) { container.innerHTML = ''; return; }
         const rescues = filteredData.filter(r => r.animal === 'serpente' && normalizeSpeciesName(r.species) === species);
         
-        // AJUSTADO: Soma as quantidades por bairro para a espécie filtrada
         const counts = rescues.reduce((acc, rescue) => {
             if (rescue.location && rescue.location.toLowerCase().startsWith('salvador')) {
                 const parts = rescue.location.split(' - ');
@@ -917,7 +1037,6 @@
     function showSnakeSpeciesForNeighborhood(neighborhoodName) {
         const rescues = filteredData.filter(r => r.animal === 'serpente' && r.location && r.location.endsWith(neighborhoodName));
         
-        // AJUSTADO: Soma as quantidades por espécie no bairro selecionado
         const counts = rescues.reduce((acc, rescue) => {
             const name = normalizeSpeciesName(rescue.species);
             acc[name] = (acc[name] || 0) + (rescue.quantity || 1);
