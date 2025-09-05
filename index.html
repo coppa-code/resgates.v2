@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Resgate de Animais Silvestres - COPPA</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+        import { getFirestore, collection, getDocs, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyAR3CmplMHgr_amleZUuYaf0c8HT6yMFi4",
+            authDomain: "resgates-coppa.firebaseapp.com",
+            projectId: "resgates-coppa",
+            storageBucket: "resgates-coppa.firebasestorage.app",
+            messagingSenderId: "555488967908",
+            appId: "1:555488967908:web:60da8a8135a12fd78ec0f1",
+            measurementId: "G-D18KF0TBK6"
+        };
+        try {
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            window.db = db;
+            window.firestore = { collection, getDocs, onSnapshot };
+            console.log('🔥 Firebase inicializado com sucesso!');
+        } catch (error) {
+            console.error('❌ Erro na inicialização Firebase:', error);
+            window.firebaseError = error;
+        }
+    </script>
+
+    <style>
+        :root {
+            --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            
+            --bg-primary-light: #f4f7f9;
+            --bg-card-light: #ffffff;
+            --text-primary-light: #1a202c;
+            --text-secondary-light: #5a6474;
+            --border-color-light: #e2e8f0;
+            
+            --bg-primary-dark: #121826;
+            --bg-card-dark: #1e293b;
+            --text-primary-dark: #e2e8f0;
+            --text-secondary-dark: #94a3b8;
+            --border-color-dark: #334155;
+
+            --accent-primary: #10b981;
+            --accent-primary-hover: #059669;
+            --accent-secondary: #3b82f6;
+            --status-success: #22c55e;
+            --status-warning: #f59e0b;
+            --status-danger: #ef4444;
+            --status-info: #0ea5e9;
+
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+            --transition-normal: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="light"] {
+            --bg-primary: var(--bg-primary-light);
+            --bg-card: var(--bg-card-light);
+            --text-primary: var(--text-primary-light);
+            --text-secondary: var(--text-secondary-light);
+            --border-color: var(--border-color-light);
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: var(--bg-primary-dark);
+            --bg-card: var(--bg-card-dark);
+            --text-primary: var(--text-primary-dark);
+            --text-secondary: var(--text-secondary-dark);
+            --border-color: var(--border-color-dark);
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        body {
+            font-family: var(--font-family-sans);
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color var(--transition-normal), color var(--transition-normal);
+        }
+
+        .dashboard-container { max-width: 1600px; margin: 0 auto; padding: 1.5rem; }
+        .dashboard-grid { display: grid; gap: 1.5rem; grid-template-columns: repeat(1, 1fr); }
+        
+        @media (min-width: 1024px) {
+            .dashboard-grid { grid-template-columns: repeat(4, 1fr); }
+            .grid-item-header { grid-column: 1 / -1; }
+            .grid-item-filters { grid-column: 1 / -1; }
+            .grid-item-total { grid-column: 1 / 3; }
+            .grid-item-stats { grid-column: 3 / -1; }
+            .grid-item-chart-animal { grid-column: 1 / 3; }
+            .grid-item-chart-period { grid-column: 3 / -1; }
+            .grid-item-chart-pelotao { grid-column: 1 / 3; }
+            .grid-item-chart-area { grid-column: 3 / -1; }
+            .grid-item-locations { grid-column: 1 / 3; }
+            .grid-item-species { grid-column: 3 / -1; }
+            .grid-item-chart-horario { grid-column: 1 / 3; } 
+            .grid-item-timeline { grid-column: 3 / -1; }
+        }
+
+        .card {
+            background-color: var(--bg-card); border-radius: 1rem; border: 1px solid var(--border-color);
+            padding: 1.5rem; box-shadow: var(--shadow-sm); transition: all var(--transition-normal);
+        }
+        .card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
+        .card-title { font-size: 1.125rem; font-weight: 600; margin-bottom: 1.5rem; color: var(--text-primary); }
+        .header { text-align: center; }
+        .header h1 { font-size: 2rem; font-weight: 700; }
+        .header p { font-size: 1.125rem; color: var(--text-secondary); }
+        
+        .total-card { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 250px; }
+        .total-number { font-size: 4rem; font-weight: 700; color: var(--accent-primary); line-height: 1; }
+        .total-label { font-size: 1rem; color: var(--text-secondary); font-weight: 500; margin-top: 0.5rem; }
+        
+        .stats-grid-container { min-height: 250px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; }
+        .stat-card { padding: 1rem; text-align: center; background-color: var(--bg-primary); border-radius: 0.75rem; border: 1px solid var(--border-color); }
+        .stat-icon { font-size: 1.75rem; line-height: 1; }
+        .stat-number { font-size: 1.5rem; font-weight: 600; margin-top: 0.5rem; color: var(--text-primary); }
+        .stat-label { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; }
+
+        .filters-card h3 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; }
+        .filter-section { margin-bottom: 1rem; }
+        .filter-section h4 { font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.5rem; }
+        .filter-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .filter-btn {
+            padding: 0.5rem 1rem; font-size: 0.875rem; border: 1px solid var(--border-color); border-radius: 0.5rem;
+            background-color: transparent; color: var(--text-secondary); cursor: pointer; transition: all var(--transition-normal);
+        }
+        .filter-btn:hover { background-color: var(--accent-primary-hover); border-color: var(--accent-primary-hover); color: white; }
+        .filter-btn.active { background-color: var(--accent-primary); border-color: var(--accent-primary); color: white; font-weight: 600; }
+        .date-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; align-items: center; }
+        input[type="date"], .form-select {
+            width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color);
+            background-color: var(--bg-primary); color: var(--text-primary); font-size: 0.875rem;
+        }
+        .btn {
+            padding: 0.6rem 1.25rem; font-size: 0.875rem; border-radius: 0.5rem; border: none;
+            background-color: var(--accent-secondary); color: white; font-weight: 600; cursor: pointer; transition: background-color var(--transition-normal);
+        }
+        .btn:hover { background-color: #2563eb; }
+
+        .chart-container { height: 350px; position: relative; }
+        .location-section, .species-category { margin-bottom: 1rem; }
+        .location-header-enhanced, .species-header {
+            display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; border-radius: 0.75rem;
+            background-color: var(--bg-primary); border: 1px solid var(--border-color); cursor: pointer; user-select: none; transition: all var(--transition-normal);
+        }
+        .location-header-enhanced:hover, .species-header:hover { border-color: var(--accent-primary); }
+        .location-title-enhanced, .species-title { display: flex; align-items: center; gap: 0.75rem; font-weight: 600; }
+        .location-icon, .species-icon { font-size: 1.25rem; }
+        .location-content-enhanced, .species-list { max-height: 0; overflow-y: auto; transition: all 0.3s ease-out; opacity: 0; }
+        .location-section.expanded .location-content-enhanced, .species-category.expanded .species-list { max-height: 300px; padding-top: 1rem; opacity: 1; }
+        .location-item-enhanced, .species-item {
+            display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0.25rem; border-bottom: 1px solid var(--border-color);
+        }
+        .location-item-enhanced:last-child, .species-item:last-child { border-bottom: none; }
+        #snake-neighborhoods-list .location-item-enhanced { cursor: pointer; }
+        #snake-neighborhoods-list .location-item-enhanced:hover { background-color: var(--bg-primary); }
+        .location-name, .species-name { font-size: 0.9rem; color: var(--text-secondary); }
+        .location-count-enhanced, .species-quantity { font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 99px; color: white; }
+        .location-count-enhanced.cities { background-color: var(--status-danger); }
+        .location-count-enhanced.neighborhoods { background-color: var(--accent-secondary); }
+        .location-count-enhanced.snakes, .species-quantity { background-color: var(--status-success); }
+        .species-filter-container { margin-bottom: 1rem; }
+        .species-filter-container label { display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.875rem; }
+        .species-filter-container select { width: 100%; }
+        hr.separator { border: none; height: 1px; background-color: var(--border-color); margin: 1.5rem 0; }
+        .ranking-title { font-size: 1rem; color: var(--text-secondary); margin-bottom: 1rem; text-align: center; font-weight: 500; }
+        #snake-neighborhoods-by-species-list:empty { display: none; }
+        #snake-neighborhoods-by-species-list h4 { margin-bottom: 1rem; text-align: center; font-size: 1rem;}
+
+        #species-inventory { max-height: 400px; overflow-y: auto; padding-right: 0.5rem; }
+        #timeline { max-height: 400px; overflow-y: auto; padding-right: 0.5rem; }
+        .timeline-item { display: flex; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--border-color); }
+        .timeline-item:last-child { border: none; }
+        .timeline-time { font-weight: 600; color: var(--text-primary); }
+        .timeline-animal { font-weight: 500; }
+        .timeline-location { font-size: 0.875rem; color: var(--text-secondary); }
+
+        /* Estilo para o selo de quantidade na timeline */
+        .timeline-quantity-badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background-color: var(--accent-primary);
+            color: white;
+            padding: 0.1rem 0.4rem;
+            border-radius: 0.5rem;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: 3000;
+            opacity: 0; transition: opacity var(--transition-normal); pointer-events: none;
+        }
+        .modal-overlay:not(.hidden) { opacity: 1; pointer-events: auto; }
+        .modal-content {
+            background: var(--bg-card); padding: 2rem; border-radius: 1rem; box-shadow: var(--shadow-lg);
+            width: 90%; max-width: 500px; position: relative; transform: scale(0.95) translateY(10px);
+            transition: all var(--transition-normal);
+        }
+        .modal-overlay:not(.hidden) .modal-content { transform: scale(1) translateY(0); }
+        .modal-close {
+            position: absolute; top: 1rem; right: 1rem; font-size: 1.5rem; color: var(--text-secondary);
+            cursor: pointer; transition: all var(--transition-normal); border: none; background: none;
+        }
+        .modal-close:hover { color: var(--status-danger); transform: rotate(90deg); }
+        #modal-title {
+            font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);
+            border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;
+        }
+        #modal-body { margin-top: 1rem; max-height: 60vh; overflow-y: auto; }
+
+        .theme-toggle {
+            position: fixed; bottom: 1.5rem; right: 1.5rem; width: 50px; height: 50px;
+            border-radius: 50%; background-color: var(--bg-card); border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-md); display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; cursor: pointer; z-index: 1000; transition: all var(--transition-normal);
+        }
+        .theme-toggle:hover { transform: scale(1.1) rotate(15deg); box-shadow: var(--shadow-lg); }
+
+        @media (max-width: 1023px) {
+            .dashboard-container { padding: 1rem; }
+            .card { padding: 1rem; }
+            .header h1 { font-size: 1.5rem; }
+            .header p { font-size: 1rem; }
+            .date-inputs { grid-template-columns: 1fr; }
+            .date-inputs .btn { width: 100%; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">
+        <span id="theme-icon">🌙</span>
+    </button>
+    
+    <div class="dashboard-container">
+        <main class="dashboard-grid">
+            
+            <header class="grid-item-header card header">
+                <h1>Dashboard de Resgates Silvestres</h1>
+                <p>Companhia de Polícia de Proteção Ambiental (COPPA)</p>
+            </header>
+
+            <div class="grid-item-filters card">
+                <h3>Filtros e Período</h3>
+                <div class="filter-section">
+                    <h4>Períodos Rápidos</h4>
+                    <div class="filter-buttons">
+                        <button class="filter-btn active" onclick="setPeriod('all')">Todos</button>
+                        <button class="filter-btn" onclick="setPeriod('today')">Hoje</button>
+                        <button class="filter-btn" onclick="setPeriod('yesterday')">Ontem</button>
+                        <button class="filter-btn" onclick="setPeriod('week')">Esta Semana</button>
+                        <button class="filter-btn" onclick="setPeriod('month')">Este Mês</button>
+                        <button class="filter-btn" onclick="setPeriod('last_month')">Mês Passado</button>
+                        <button class="filter-btn" onclick="setPeriod('prev_month')">Mês Retrasado</button>
+                        <button class="filter-btn" onclick="setPeriod('year')">Este Ano</button>
+                    </div>
+                </div>
+                <div class="filter-section">
+                    <h4>Período Personalizado</h4>
+                    <div class="date-inputs">
+                        <input type="date" id="startDate" aria-label="Data inicial">
+                        <input type="date" id="endDate" aria-label="Data final">
+                        <button class="btn" onclick="setCustomPeriod()">Aplicar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-item-total card total-card">
+                <div id="total-count" class="total-number">0</div>
+                <div class="total-label" id="period-subtitle">Total de Animais Resgatados</div>
+            </div>
+
+            <div class="grid-item-stats card stats-grid-container">
+                <h3 class="card-title">Resgates por Grupo</h3>
+                <div id="stats-grid" class="stats-grid"></div>
+            </div>
+
+            <div class="grid-item-chart-animal card">
+                <h3 class="card-title">Distribuição por Grupo</h3>
+                <div class="chart-container">
+                    <canvas id="animalChart"></canvas>
+                </div>
+            </div>
+
+            <div class="grid-item-chart-period card">
+                <h3 class="card-title">Tendência de Resgates</h3>
+                <div class="chart-container">
+                    <canvas id="periodChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="grid-item-chart-pelotao card">
+                <h3 class="card-title">Ranking de Pelotões</h3>
+                <div class="chart-container">
+                    <canvas id="pelotaoChart"></canvas>
+                </div>
+            </div>
+            <div class="grid-item-chart-area card">
+                <h3 class="card-title">Resgates de Serpentes por Tipo de Área</h3>
+                <div class="chart-container">
+                    <canvas id="areaTypeChart"></canvas>
+                </div>
+            </div>
+            <div class="grid-item-locations card">
+                <h3 class="card-title">Análise Geográfica</h3>
+                <div class="location-section" id="cities-section">
+                    <div class="location-header-enhanced" onclick="toggleLocationSection('cities')">
+                        <div class="location-title-enhanced"><span class="location-icon">📍</span> Cidades</div>
+                        <span class="location-count-enhanced cities" id="cities-counter">0</span>
+                    </div>
+                    <div class="location-content-enhanced" id="cities-content"><div id="city-list"></div></div>
+                </div>
+                <div class="location-section" id="neighborhoods-section">
+                    <div class="location-header-enhanced" onclick="toggleLocationSection('neighborhoods')">
+                        <div class="location-title-enhanced"><span class="location-icon">🏘️</span> Bairros de Salvador</div>
+                        <span class="location-count-enhanced neighborhoods" id="neighborhoods-counter">0</span>
+                    </div>
+                    <div class="location-content-enhanced" id="neighborhoods-content"><div id="salvador-neighborhoods"></div></div>
+                </div>
+                <div class="location-section" id="snakes-section">
+                    <div class="location-header-enhanced" onclick="toggleLocationSection('snakes')">
+                        <div class="location-title-enhanced"><span class="location-icon">🐍</span> Análise de Serpentes</div>
+                        <span class="location-count-enhanced snakes" id="snakes-counter">0</span>
+                    </div>
+                    <div class="location-content-enhanced" id="snakes-content">
+                        <div class="species-filter-container">
+                            <label for="snake-species-filter">Filtrar por Espécie:</label>
+                            <select id="snake-species-filter" class="form-select" onchange="displayNeighborhoodsForSpecies()"></select>
+                        </div>
+                        <div id="snake-neighborhoods-by-species-list"></div>
+                        <hr class="separator">
+                        <h4 class="ranking-title">Ranking Geral (Todas as Serpentes)</h4>
+                        <div id="snake-neighborhoods-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-item-species card">
+                <h3 class="card-title">Inventário por Espécie</h3>
+                <div id="species-inventory" style="max-height: 400px; overflow-y: auto;"></div>
+            </div>
+
+            <div class="grid-item-chart-horario card">
+                <h3 class="card-title">Resgates por Horário</h3>
+                <div class="chart-container">
+                    <canvas id="horarioChart"></canvas>
+                </div>
+            </div>
+
+            <div class="grid-item-timeline card">
+                <h3 class="card-title">Últimos Resgates Registrados</h3>
+                <div id="timeline" class="timeline"></div>
+            </div>
+
+        </main>
+    </div>
+
+    <div id="details-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()" aria-label="Fechar modal">&times;</button>
+            <h3 id="modal-title">Detalhes do Resgate</h3>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+    
+    <script>
+    // ==========================================================================
+    // 1. CONFIGURAÇÕES E VARIÁVEIS GLOBAIS
+    // ==========================================================================
+    const animalConfig = {
+        serpente: 	  { icon: '🐍', name: 'Serpentes', 	  color: '#ef4444' },
+        iguana: 	  { icon: '🦎', name: 'Iguanas', 	      color: '#22c55e' },
+        teiu: 		  { icon: '🦎', name: 'Teiús', 		      color: '#f97316' },
+        jabuti: 	  { icon: '🐢', name: 'Jabutis', 	      color: '#14b8a6' },
+        ave_rapina:   { icon: '🦅', name: 'Aves de Rapina',   color: '#3b82f6' },
+        passeriforme: { icon: '🐦', name: 'Passeriformes', 	  color: '#0ea5e9' },
+        ave_outras:   { icon: '🕊️', name: 'Outras Aves', 	  color: '#6366f1' },
+        sariguê: 	  { icon: '🦡', name: 'Sariguês', 	      color: '#a855f7' },
+        primata: 	  { icon: '🐒', name: 'Primatas', 	    color: '#d946ef' },
+        mamifero: 	  { icon: '🐾', name: 'Outros Mamíferos', color: '#881337' },
+        outros: 	  { icon: '❓', name: 'Outros', 		      color: '#64748b' }
+    };
+    let rescueData = [];
+    let filteredData = [];
+    let charts = {};
+    let currentPeriod = 'all';
+
+    // ==========================================================================
+    // 2. INICIALIZAÇÃO DO DASHBOARD
+    // ==========================================================================
+    document.addEventListener('DOMContentLoaded', initializeApp);
+
+    function initializeApp() {
+        console.log('🚀 Dashboard Profissional Inicializado');
+        loadSavedTheme();
+        setupEventListeners();
+        initializeFirebaseConnection();
+    }
+
+    function setupEventListeners() {
+        document.getElementById('details-modal').addEventListener('click', (event) => {
+            if (event.target === event.currentTarget) closeModal();
+        });
+    }
+
+    function initializeFirebaseConnection() {
+        loadSampleData(); 
+        setTimeout(() => {
+            if (typeof window.db !== 'undefined') {
+                console.log('🔥 Conectando ao Firebase...');
+                loadFirebaseData().catch(error => {
+                    console.warn('⚠️ Erro ao carregar do Firebase, usando dados de exemplo:', error);
+                });
+            } else {
+                console.log('💾 Firebase não disponível, usando dados de exemplo.');
+            }
+        }, 1500);
+    }
+
+    // ==========================================================================
+    // 3. MANIPULAÇÃO DE DADOS
+    // ==========================================================================
+    function getTodayLocalString() {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    
+    // DADOS DE EXEMPLO ATUALIZADOS COM O CAMPO 'quantity'
+    const initialData = [
+        { animal: 'serpente', species: 'Jiboia', date: getTodayLocalString(), time: '09:15', location: 'Salvador - Pituba', pelotao: '1º Pelotão', areaType: 'residencial', quantity: 3 },
+        { animal: 'serpente', species: 'Jararaca', date: new Date(new Date().setDate(new Date().getDate()-1)).toISOString().split('T')[0], time: '14:30', location: 'Salvador - Itapuã', pelotao: '2º Pelotão', areaType: 'residencial', quantity: 1 },
+        { animal: 'ave_rapina', species: 'Carcará', date: new Date(new Date().setDate(new Date().getDate()-1)).toISOString().split('T')[0], time: '11:00', location: 'Lauro de Freitas - Centro', pelotao: '3º Pelotão', areaType: 'nao_residencial', quantity: 1 },
+        { animal: 'sariguê', species: 'Gambá', date: new Date(new Date().setDate(new Date().getDate()-2)).toISOString().split('T')[0], time: '22:05', location: 'Salvador - Barra', pelotao: '1º Pelotão', areaType: 'residencial', quantity: 5 },
+        { animal: 'serpente', species: 'Jiboia', date: new Date(new Date().setDate(new Date().getDate()-3)).toISOString().split('T')[0], time: '16:45', location: 'Salvador - Barra', pelotao: '1º Pelotão', areaType: 'nao_residencial', quantity: 1 },
+        { animal: 'jabuti', species: 'Jabuti-piranga', date: new Date(new Date().setMonth(new Date().getMonth()-1)).toISOString().split('T')[0], time: '13:00', location: 'Camaçari - Centro', pelotao: '4º Pelotão', areaType: 'nao_residencial' }, // Exemplo sem quantity, usará 1
+        { animal: 'serpente', species: 'Cipó', date: new Date(new Date().setMonth(new Date().getMonth()-1)).toISOString().split('T')[0], time: '10:20', location: 'Salvador - Pituba', pelotao: '2º Pelotão', areaType: 'nao_residencial', quantity: 2 },
+        { animal: 'serpente', species: 'Coral Verdadeira', date: getTodayLocalString(), time: '18:00', location: 'Salvador - Rio Vermelho', pelotao: '3º Pelotão', areaType: 'residencial', quantity: 1 },
+    ];
+
+    function loadSampleData() {
+        rescueData = initialData.map((item, index) => ({ id: `sample_${index}`, ...item }));
+        setPeriod('all');
+    }
+
+    async function loadFirebaseData() {
+        const { getDocs, collection } = window.firestore;
+        const querySnapshot = await getDocs(collection(window.db, 'resgates'));
+        const firebaseData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (firebaseData.length > 0) {
+            rescueData = firebaseData;
+            setPeriod('all');
+        }
+    }
+    
+    // ==========================================================================
+    // 4. LÓGICA DE FILTROS E PERÍODOS
+    // ==========================================================================
+    function setPeriod(period) {
+        currentPeriod = period;
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            const periodMap = {'todos': 'all', 'hoje': 'today', 'ontem': 'yesterday', 'esta semana': 'week', 'este mês': 'month', 'mês passado': 'last_month', 'mês retrasado': 'prev_month', 'este ano': 'year'};
+            btn.classList.toggle('active', periodMap[btn.textContent.toLowerCase()] === period);
+        });
+        document.getElementById('startDate').value = '';
+        document.getElementById('endDate').value = '';
+        applyFilters();
+    }
+
+    function setCustomPeriod() {
+        if (!document.getElementById('startDate').value || !document.getElementById('endDate').value) return;
+        currentPeriod = 'custom';
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        applyFilters();
+    }
+
+    function applyFilters() {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const periodFilters = {
+            'all': () => true,
+            'today': d => d.getTime() === today.getTime(),
+            'yesterday': d => d.getTime() === new Date(new Date().setDate(today.getDate() - 1)).setHours(0,0,0,0),
+            'week': d => d >= new Date(new Date().setDate(today.getDate() - today.getDay())).setHours(0,0,0,0),
+            'month': d => d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear(),
+            'last_month': d => {
+                const lastMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                return d.getMonth() === lastMonthDate.getMonth() && d.getFullYear() === lastMonthDate.getFullYear();
+            },
+            'prev_month': d => {
+                const prevMonthDate = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+                return d.getMonth() === prevMonthDate.getMonth() && d.getFullYear() === prevMonthDate.getFullYear();
+            },
+            'year': d => d.getFullYear() === today.getFullYear(),
+            'custom': d => {
+                const start = new Date(document.getElementById('startDate').value + 'T00:00:00');
+                const end = new Date(document.getElementById('endDate').value + 'T23:59:59');
+                return d >= start && d <= end;
+            }
+        };
+
+        filteredData = rescueData.filter(rescue => {
+            if (!rescue.date) return false;
+            const rescueDate = new Date(rescue.date + 'T00:00:00'); // Trata data como local
+            return periodFilters[currentPeriod](rescueDate);
+        });
+        updateAllComponents();
+    }
+
+    // ==========================================================================
+    // 5. ATUALIZAÇÃO DA INTERFACE (UI)
+    // ==========================================================================
+    function updateAllComponents() {
+        updateTotalCount();
+        updateStatsGrid();
+        updateLocationStats();
+        updateSpeciesInventory();
+        updateTimeline();
+        updateSnakeRescueStats();
+        updateSnakeSpeciesFilter();
+        updateCharts(); // Gráficos por último para ter acesso às cores do tema
+    }
+
+    function updateTotalCount() {
+        // AJUSTADO: Soma as quantidades em vez de contar os registros
+        const totalAnimals = filteredData.reduce((sum, rescue) => sum + (rescue.quantity || 1), 0);
+        document.getElementById('total-count').textContent = totalAnimals;
+        const activeBtn = document.querySelector('.filter-btn.active');
+        const periodText = activeBtn ? activeBtn.textContent : 'Período Personalizado';
+        document.getElementById('period-subtitle').textContent = `Total de Animais Resgatados (${periodText})`;
+    }
+
+    function updateStatsGrid() {
+        // AJUSTADO: Soma as quantidades por tipo de animal
+        const counts = filteredData.reduce((acc, rescue) => {
+            acc[rescue.animal] = (acc[rescue.animal] || 0) + (rescue.quantity || 1);
+            return acc;
+        }, {});
+        const grid = document.getElementById('stats-grid');
+        grid.innerHTML = '';
+        Object.entries(animalConfig).forEach(([key, { icon, name, color }]) => {
+            const count = counts[key] || 0;
+            grid.innerHTML += `
+                <div class="stat-card">
+                    <div class="stat-icon" style="color: ${color};">${icon}</div>
+                    <div class="stat-number">${count}</div>
+                    <div class="stat-label">${name}</div>
+                </div>`;
+        });
+    }
+
+    function updateLocationStats() {
+        const cityCounts = {};
+        const salvadorNeighborhoods = {};
+        // AJUSTADO: Usa o registro completo para acessar a quantidade
+        filteredData.forEach(rescue => {
+            if (!rescue.location) return;
+            const parts = rescue.location.split(' - ').map(p => p.trim());
+            const city = normalizeCapitalization(parts[0]);
+            // AJUSTADO: Soma a quantidade
+            cityCounts[city] = (cityCounts[city] || 0) + (rescue.quantity || 1);
+            if (city.toLowerCase() === 'salvador' && parts.length > 1) {
+                const neighborhood = normalizeCapitalization(parts[1]);
+                // AJUSTADO: Soma a quantidade
+                salvadorNeighborhoods[neighborhood] = (salvadorNeighborhoods[neighborhood] || 0) + (rescue.quantity || 1);
+            }
+        });
+
+        document.getElementById('cities-counter').textContent = Object.keys(cityCounts).length;
+        document.getElementById('neighborhoods-counter').textContent = Object.keys(salvadorNeighborhoods).length;
+
+        const cityList = document.getElementById('city-list');
+        cityList.innerHTML = Object.entries(cityCounts).sort((a, b) => b[1] - a[1]).map(([name, count]) => `
+            <div class="location-item-enhanced"><span class="location-name">${name}</span><span class="location-count-enhanced cities">${count}</span></div>
+        `).join('') || `<div class="empty-location-message">Nenhuma cidade encontrada.</div>`;
+        
+        const salvadorList = document.getElementById('salvador-neighborhoods');
+        salvadorList.innerHTML = Object.entries(salvadorNeighborhoods).sort((a, b) => b[1] - a[1]).map(([name, count]) => `
+            <div class="location-item-enhanced"><span class="location-name">${name}</span><span class="location-count-enhanced neighborhoods">${count}</span></div>
+        `).join('') || `<div class="empty-location-message">Nenhum bairro encontrado.</div>`;
+    }
+
+    function updateSpeciesInventory() {
+        const inventory = {};
+        // AJUSTADO: Usa o registro completo para acessar a quantidade
+        filteredData.forEach(rescue => {
+            const type = (rescue.animal && animalConfig[rescue.animal]) ? rescue.animal : 'outros';
+            
+            if (!inventory[type]) {
+                inventory[type] = {};
+            }
+            
+            const speciesSource = (type === 'outros' && rescue.otherAnimal) ? rescue.otherAnimal : rescue.species;
+            const speciesName = normalizeSpeciesName(speciesSource);
+            
+            // AJUSTADO: Soma a quantidade da espécie
+            inventory[type][speciesName] = (inventory[type][speciesName] || 0) + (rescue.quantity || 1);
+        });
+
+        const container = document.getElementById('species-inventory');
+        container.innerHTML = Object.entries(inventory).sort((a,b) => Object.values(b[1]).reduce((s,c)=>s+c,0) - Object.values(a[1]).reduce((s,c)=>s+c,0)).map(([type, species]) => `
+            <div class="species-category">
+                <div class="species-header" onclick="this.parentElement.classList.toggle('expanded')">
+                    <div class="species-title">${animalConfig[type].icon} ${animalConfig[type].name}</div>
+                    <span>${Object.values(species).reduce((s, c) => s + c, 0)}</span>
+                </div>
+                <div class="species-list">
+                    ${Object.entries(species).sort((a, b) => b[1] - a[1]).map(([name, count]) => `
+                        <div class="species-item"><span class="species-name">${name}</span><span class="species-quantity">${count}</span></div>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function updateTimeline() {
+        const timeline = document.getElementById('timeline');
+        const sortedData = [...filteredData].sort((a, b) => new Date(b.date + 'T' + (b.time || '00:00')) - new Date(a.date + 'T' + (a.time || '00:00')));
+        
+        // AJUSTADO: Adiciona o selo de quantidade
+        timeline.innerHTML = sortedData.slice(0, 50).map(rescue => {
+            const { date, time, animal, species, location, quantity } = rescue;
+            const quantityBadge = quantity > 1 ? `<span class="timeline-quantity-badge">x${quantity}</span>` : '';
+            return `
+                <div class="timeline-item">
+                    <div class="timeline-time">${new Date(date + 'T00:00:00').toLocaleDateString('pt-BR')} ${time || ''}</div>
+                    <div class="timeline-details">
+                        <div class="timeline-animal">${animalConfig[animal]?.icon || '❓'} ${normalizeSpeciesName(species)}${quantityBadge}</div>
+                        <div class="timeline-location">${location}</div>
+                    </div>
+                </div>
+            `;
+        }).join('') || `<div class="empty-location-message">Nenhum resgate no período.</div>`;
+    }
+
+    // ==========================================================================
+    // 6. LÓGICA DOS GRÁFICOS (CHART.JS)
+    // ==========================================================================
+    function updateCharts() {
+        Object.values(charts).forEach(chart => chart.destroy());
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const colors = {
+            text: isDark ? '#e2e8f0' : '#334155',
+            grid: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(226, 232, 240, 0.8)',
+            cardBg: isDark ? '#1e293b' : '#ffffff',
+        };
+        Chart.defaults.color = colors.text;
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        createAnimalDistributionChart(colors);
+        createPeriodTrendChart(colors);
+        createPelotaoChart(colors);
+        createAreaTypeChart(colors);
+        createHorarioChart(colors);
+    }
+
+    function createAnimalDistributionChart(colors) {
+        // AJUSTADO: Soma as quantidades por tipo
+        const counts = filteredData.reduce((acc, rescue) => {
+            acc[rescue.animal] = (acc[rescue.animal] || 0) + (rescue.quantity || 1);
+            return acc;
+        }, {});
+        const chartData = Object.entries(counts).map(([key, value]) => ({ label: animalConfig[key].name, data: value, color: animalConfig[key].color }));
+        const ctx = document.getElementById('animalChart').getContext('2d');
+        charts.animal = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: chartData.map(d => d.label),
+                datasets: [{ data: chartData.map(d => d.data), backgroundColor: chartData.map(d => d.color), borderWidth: 2, borderColor: colors.cardBg }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 12 } } } }
+        });
+    }
+
+    function createPeriodTrendChart(colors) {
+        // AJUSTADO: Soma as quantidades por data
+        const counts = filteredData.reduce((acc, rescue) => {
+            acc[rescue.date] = (acc[rescue.date] || 0) + (rescue.quantity || 1);
+            return acc;
+        }, {});
+        const sortedLabels = Object.keys(counts).sort((a,b) => new Date(a) - new Date(b));
+        const ctx = document.getElementById('periodChart').getContext('2d');
+        charts.period = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sortedLabels.map(d => new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{month:'short', day:'numeric'})),
+                datasets: [{
+                    label: 'Resgates', data: sortedLabels.map(label => counts[label]), borderColor: 'var(--accent-primary)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.3, pointRadius: 2, pointHoverRadius: 5
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                scales: { x: { grid: { color: colors.grid } }, y: { beginAtZero: true, grid: { color: colors.grid }, ticks: { precision: 0 } } }
+            }
+        });
+    }
+
+    function createPelotaoChart(colors) {
+        // AJUSTADO: Soma as quantidades por pelotão
+        const pelotaoCounts = filteredData.reduce((acc, rescue) => {
+            if (rescue.pelotao) {
+                acc[rescue.pelotao] = (acc[rescue.pelotao] || 0) + (rescue.quantity || 1);
+            }
+            return acc;
+        }, {});
+
+        const sortedPelotoes = Object.entries(pelotaoCounts).sort((a, b) => b[1] - a[1]);
+        const labels = sortedPelotoes.map(item => item[0]);
+        const data = sortedPelotoes.map(item => item[1]);
+        
+        const barColors = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#64748b'];
+
+        const ctx = document.getElementById('pelotaoChart').getContext('2d');
+        charts.pelotao = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Resgates',
+                    data: data,
+                    backgroundColor: barColors,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { 
+                    x: { grid: { color: colors.grid }, ticks: { precision: 0 } }, 
+                    y: { grid: { color: 'transparent' } }
+                }
+            }
+        });
+    }
+
+    function createAreaTypeChart(colors) {
+        const snakeData = filteredData.filter(r => r.animal === 'serpente');
+        
+        // AJUSTADO: Soma as quantidades por tipo de área
+        const areaCounts = snakeData.reduce((acc, rescue) => {
+            const type = rescue.areaType || 'nao_informado';
+            if (type !== 'nao_informado') {
+              acc[type] = (acc[type] || 0) + (rescue.quantity || 1);
+            }
+            return acc;
+        }, {});
+
+        const ctx = document.getElementById('areaTypeChart').getContext('2d');
+        charts.areaType = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: ['Área Residencial', 'Área Não Residencial'],
+                datasets: [{
+                    data: [ areaCounts.residencial || 0, areaCounts.nao_residencial || 0 ],
+                    backgroundColor: ['#3b82f6', '#22c55e'],
+                    borderWidth: 2,
+                    borderColor: colors.cardBg
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } }
+            }
+        });
+    }
+
+    function createHorarioChart(colors) {
+        const hourlyCounts = Array(24).fill(0);
+        // AJUSTADO: Soma as quantidades por hora
+        filteredData.forEach(rescue => {
+            if (rescue.time) {
+                try {
+                    const hour = parseInt(rescue.time.split(':')[0], 10);
+                    if (!isNaN(hour) && hour >= 0 && hour < 24) {
+                        hourlyCounts[hour] += (rescue.quantity || 1);
+                    }
+                } catch (e) { console.warn(`Horário inválido: ${rescue.time}`); }
+            }
+        });
+
+        const labels = Array.from({length: 24}, (_, i) => `${String(i).padStart(2, '0')}h`);
+        const ctx = document.getElementById('horarioChart').getContext('2d');
+        
+        const gradient = ctx.createLinearGradient(0, 0, 0, 350);
+        gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
+        gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+
+        charts.horario = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Resgates',
+                    data: hourlyCounts,
+                    fill: true,
+                    backgroundColor: gradient,
+                    borderColor: 'var(--accent-secondary)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    pointBackgroundColor: 'var(--accent-secondary)',
+                    pointRadius: 1,
+                    pointHoverRadius: 6,
+                    pointHoverBorderColor: colors.cardBg,
+                    pointHoverBorderWidth: 2,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'transparent' } },
+                    y: { 
+                        beginAtZero: true, 
+                        grid: { color: colors.grid }, 
+                        ticks: { precision: 0 } 
+                    }
+                }
+            }
+        });
+    }
+
+
+    // ==========================================================================
+    // 7. LÓGICA ESPECÍFICA (MODAIS, FILTROS ANINHADOS)
+    // ==========================================================================
+    function updateSnakeRescueStats() {
+        const listContainer = document.getElementById('snake-neighborhoods-list');
+        const snakeRescues = filteredData.filter(r => r.animal === 'serpente');
+        
+        // AJUSTADO: Soma as quantidades por bairro
+        const neighborhoodCounts = snakeRescues.reduce((acc, rescue) => {
+            if (rescue.location && rescue.location.toLowerCase().startsWith('salvador')) {
+                const parts = rescue.location.split(' - ');
+                if (parts.length > 1) {
+                    const neighborhood = normalizeCapitalization(parts[1].trim());
+                    acc[neighborhood] = (acc[neighborhood] || 0) + (rescue.quantity || 1);
+                }
+            }
+            return acc;
+        }, {});
+
+        const sortedNeighborhoods = Object.entries(neighborhoodCounts).sort((a, b) => b[1] - a[1]);
+        const totalSnakes = sortedNeighborhoods.reduce((sum, [, count]) => sum + count, 0);
+        document.getElementById('snakes-counter').textContent = totalSnakes;
+
+        listContainer.innerHTML = sortedNeighborhoods.map(([name, count]) => `
+            <div class="location-item-enhanced" onclick="showSnakeSpeciesForNeighborhood('${name}')">
+                <span class="location-name">${name}</span>
+                <span class="location-count-enhanced snakes">${count}</span>
+            </div>`).join('') || `<div class="empty-location-message">Nenhum resgate de serpente em bairros de Salvador.</div>`;
+    }
+    
+    function updateSnakeSpeciesFilter() {
+        const select = document.getElementById('snake-species-filter');
+        const uniqueSpecies = [...new Set(filteredData.filter(r => r.animal === 'serpente').map(r => normalizeSpeciesName(r.species)))].sort();
+        const currentSelection = select.value;
+        select.innerHTML = '<option value="">-- Todas as Espécies --</option>' + uniqueSpecies.map(s => `<option value="${s}">${s}</option>`).join('');
+        if (uniqueSpecies.includes(currentSelection)) select.value = currentSelection;
+        displayNeighborhoodsForSpecies();
+    }
+
+    function displayNeighborhoodsForSpecies() {
+        const container = document.getElementById('snake-neighborhoods-by-species-list');
+        const species = document.getElementById('snake-species-filter').value;
+        if (!species) { container.innerHTML = ''; return; }
+        const rescues = filteredData.filter(r => r.animal === 'serpente' && normalizeSpeciesName(r.species) === species);
+        
+        // AJUSTADO: Soma as quantidades por bairro para a espécie filtrada
+        const counts = rescues.reduce((acc, rescue) => {
+            if (rescue.location && rescue.location.toLowerCase().startsWith('salvador')) {
+                const parts = rescue.location.split(' - ');
+                if (parts.length > 1) {
+                    const neighborhood = normalizeCapitalization(parts[1].trim());
+                    acc[neighborhood] = (acc[neighborhood] || 0) + (rescue.quantity || 1);
+                }
+            }
+            return acc;
+        }, {});
+        const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+        if (sorted.length === 0) {
+            container.innerHTML = `<div class="empty-location-message">Nenhum resgate de <strong>${species}</strong> em bairros de Salvador.</div>`;
+        } else {
+            container.innerHTML = `<h4 class="ranking-title">Ranking para: <strong>${species}</strong></h4>` + sorted.map(([name, count]) => `
+                <div class="location-item-enhanced"><span class="location-name">${name}</span><span class="location-count-enhanced snakes">${count}</span></div>
+            `).join('');
+        }
+    }
+
+    function showSnakeSpeciesForNeighborhood(neighborhoodName) {
+        const rescues = filteredData.filter(r => r.animal === 'serpente' && r.location && r.location.endsWith(neighborhoodName));
+        
+        // AJUSTADO: Soma as quantidades por espécie no bairro selecionado
+        const counts = rescues.reduce((acc, rescue) => {
+            const name = normalizeSpeciesName(rescue.species);
+            acc[name] = (acc[name] || 0) + (rescue.quantity || 1);
+            return acc;
+        }, {});
+        const content = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, count]) => `
+            <div class="species-item"><span class="species-name">${name}</span><span class="species-quantity">${count}</span></div>
+        `).join('') || '<p>Nenhuma espécie detalhada encontrada.</p>';
+        openModal(`Serpentes em ${neighborhoodName}`, content);
+    }
+    
+    function openModal(title, content) {
+        document.getElementById('modal-title').innerHTML = title;
+        document.getElementById('modal-body').innerHTML = content;
+        document.getElementById('details-modal').classList.remove('hidden');
+    }
+    function closeModal() { document.getElementById('details-modal').classList.add('hidden'); }
+
+    // ==========================================================================
+    // 8. FUNÇÕES UTILITÁRIAS
+    // ==========================================================================
+    function toggleTheme() {
+        const theme = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        document.getElementById('theme-icon').textContent = theme === 'light' ? '🌙' : '☀️';
+        localStorage.setItem('coppa-theme', theme);
+        updateCharts();
+    }
+    function loadSavedTheme() {
+        const theme = localStorage.getItem('coppa-theme') || 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        document.getElementById('theme-icon').textContent = theme === 'light' ? '🌙' : '☀️';
+    }
+    function toggleLocationSection(id) { document.getElementById(`${id}-section`).classList.toggle('expanded'); }
+    
+    function normalizeCapitalization(text) {
+        if (!text) return '';
+        return text.trim().toLowerCase().split(' ').map(word => ['de', 'da', 'do'].includes(word) ? word : word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    }
+
+    function normalizeSpeciesName(name) {
+        let normalized = normalizeCapitalization(name || 'Não especificada');
+        if (normalized === 'Cães') {
+            return 'Cão';
+        }
+        return normalized;
+    }
+
+    </script>
+</body>
+</html>
