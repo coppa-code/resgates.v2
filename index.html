@@ -388,17 +388,17 @@
     // 1. CONFIGURAÇÕES E VARIÁVEIS GLOBAIS
     // ==========================================================================
     const animalConfig = {
-        serpente: 	  { icon: '🐍', name: 'Serpentes', 	  color: '#ef4444' },
-        iguana: 	  { icon: '🦎', name: 'Iguanas', 	      color: '#22c55e' },
-        teiu: 		  { icon: '🦎', name: 'Teiús', 		      color: '#f97316' },
-        jabuti: 	  { icon: '🐢', name: 'Jabutis', 	      color: '#14b8a6' },
+        serpente:     { icon: '🐍', name: 'Serpentes',      color: '#ef4444' },
+        iguana:     { icon: '🦎', name: 'Iguanas',        color: '#22c55e' },
+        teiu:       { icon: '🦎', name: 'Teiús',          color: '#f97316' },
+        jabuti:     { icon: '🐢', name: 'Jabutis',        color: '#14b8a6' },
         ave_rapina:   { icon: '🦅', name: 'Aves de Rapina',   color: '#3b82f6' },
-        passeriforme: { icon: '🐦', name: 'Passeriformes', 	  color: '#0ea5e9' },
-        ave_outras:   { icon: '🕊️', name: 'Outras Aves', 	  color: '#6366f1' },
-        sariguê: 	  { icon: '🦡', name: 'Sariguês', 	      color: '#a855f7' },
-        primata: 	  { icon: '🐒', name: 'Primatas', 	    color: '#d946ef' },
-        mamifero: 	  { icon: '🐾', name: 'Outros Mamíferos', color: '#881337' },
-        outros: 	  { icon: '❓', name: 'Outros', 		      color: '#64748b' }
+        passeriforme: { icon: '🐦', name: 'Passeriformes',    color: '#0ea5e9' },
+        ave_outras:   { icon: '🕊️', name: 'Outras Aves',      color: '#6366f1' },
+        sariguê:    { icon: '🦡', name: 'Sariguês',         color: '#a855f7' },
+        primata:    { icon: '🐒', name: 'Primatas',       color: '#d946ef' },
+        mamifero:     { icon: '🐾', name: 'Outros Mamíferos', color: '#881337' },
+        outros:     { icon: '❓', name: 'Outros',           color: '#64748b' }
     };
     let rescueData = [];
     let filteredData = [];
@@ -640,16 +640,17 @@
         const timeline = document.getElementById('timeline');
         const sortedData = [...filteredData].sort((a, b) => new Date(b.date + 'T' + (b.time || '00:00')) - new Date(a.date + 'T' + (a.time || '00:00')));
         
-        // AJUSTADO: Adiciona o selo de quantidade
         timeline.innerHTML = sortedData.slice(0, 50).map(rescue => {
-            const { date, time, animal, species, location, quantity } = rescue;
+            const { date, time, animal, species, location, quantity, pelotao } = rescue;
             const quantityBadge = quantity > 1 ? `<span class="timeline-quantity-badge">x${quantity}</span>` : '';
+            const locationText = pelotao ? `${location || 'Local não informado'} - ${pelotao}` : (location || 'Local não informado');
+            
             return `
                 <div class="timeline-item">
                     <div class="timeline-time">${new Date(date + 'T00:00:00').toLocaleDateString('pt-BR')} ${time || ''}</div>
                     <div class="timeline-details">
                         <div class="timeline-animal">${animalConfig[animal]?.icon || '❓'} ${normalizeSpeciesName(species)}${quantityBadge}</div>
-                        <div class="timeline-location">${location}</div>
+                        <div class="timeline-location">${locationText}</div>
                     </div>
                 </div>
             `;
