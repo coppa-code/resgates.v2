@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.1.0/dist/chartjs-plugin-datalabels.min.js"></script>
     
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
@@ -788,6 +789,7 @@
         const sortedPelotoes = Object.entries(pelotaoCounts).sort((a, b) => b[1] - a[1]);
         const labels = sortedPelotoes.map(item => item[0]);
         const data = sortedPelotoes.map(item => item[1]);
+        const totalResgates = data.reduce((sum, value) => sum + value, 0);
         
         const barColors = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#64748b'];
 
@@ -807,12 +809,28 @@
                 indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        display: true,
+                        anchor: 'end',
+                        align: 'end',
+                        color: colors.text,
+                        font: { weight: 'bold' },
+                        formatter: (value) => {
+                            if (totalResgates === 0) return '0%';
+                            const percentage = (value / totalResgates) * 100;
+                            return `${value} (${percentage.toFixed(1)}%)`;
+                        },
+                        padding: { left: 8 }
+                    }
+                },
                 scales: { 
-                    x: { grid: { color: colors.grid }, ticks: { precision: 0 } }, 
+                    x: { grid: { color: colors.grid }, ticks: { precision: 0 }, grace: '10%' }, 
                     y: { grid: { color: 'transparent' } }
                 }
-            }
+            },
+            plugins: [ChartDataLabels] // <-- Registra o plugin APENAS para este gráfico
         });
     }
 
@@ -827,13 +845,17 @@
             return acc;
         }, {});
 
+        const residentialCount = areaCounts.residencial || 0;
+        const nonResidentialCount = areaCounts.nao_residencial || 0;
+        const totalSnakes = residentialCount + nonResidentialCount;
+
         const ctx = document.getElementById('areaTypeChart').getContext('2d');
         charts.areaType = new Chart(ctx, {
             type: 'pie',
             data: {
                 labels: ['Área Residencial', 'Área Não Residencial'],
                 datasets: [{
-                    data: [ areaCounts.residencial || 0, areaCounts.nao_residencial || 0 ],
+                    data: [ residentialCount, nonResidentialCount ],
                     backgroundColor: ['#3b82f6', '#22c55e'],
                     borderWidth: 2,
                     borderColor: colors.cardBg
@@ -842,8 +864,22 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } }
-            }
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                    datalabels: {
+                        display: true,
+                        formatter: (value) => {
+                            if (totalSnakes === 0) return '';
+                            const percentage = (value / totalSnakes) * 100;
+                            if (percentage < 5) return ''; // Esconde se a fatia for muito pequena
+                            return percentage.toFixed(1) + '%';
+                        },
+                        color: '#fff',
+                        font: { weight: 'bold', size: 14 }
+                    }
+                }
+            },
+            plugins: [ChartDataLabels] // <-- Registra o plugin APENAS para este gráfico
         });
     }
 
@@ -1088,3 +1124,4 @@
     </script>
 </body>
 </html>
+
