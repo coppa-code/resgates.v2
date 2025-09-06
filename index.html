@@ -756,24 +756,74 @@
     }
 
     function createPeriodTrendChart(colors) {
+        if (filteredData.length === 0) {
+            if (charts.period) {
+                charts.period.destroy();
+            }
+            return;
+        }
+
+        const sortedByDate = [...filteredData].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const firstDate = new Date(sortedByDate[0].date);
+        const lastDate = new Date(sortedByDate[sortedByDate.length - 1].date);
+        const dateRangeDays = (lastDate - firstDate) / (1000 * 60 * 60 * 24);
+
+        let aggregationUnit = 'day';
+        let labelFormatter = { month: 'short', day: 'numeric' };
+        if (dateRangeDays > 60) {
+            aggregationUnit = 'month';
+            labelFormatter = { month: 'long', year: 'numeric' };
+        }
+        
         const counts = filteredData.reduce((acc, rescue) => {
-            acc[rescue.date] = (acc[rescue.date] || 0) + (rescue.quantity || 1);
+            const d = new Date(rescue.date + 'T00:00:00');
+            let key;
+            if (aggregationUnit === 'month') {
+                key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            } else {
+                key = rescue.date;
+            }
+            acc[key] = (acc[key] || 0) + (rescue.quantity || 1);
             return acc;
         }, {});
-        const sortedLabels = Object.keys(counts).sort((a,b) => new Date(a) - new Date(b));
+
+        const sortedKeys = Object.keys(counts).sort();
+
+        const chartLabels = sortedKeys.map(key => {
+            if (aggregationUnit === 'month') {
+                const [year, month] = key.split('-');
+                return new Date(year, month - 1, 2).toLocaleDateString('pt-BR', labelFormatter);
+            } else {
+                return new Date(key + 'T00:00:00').toLocaleDateString('pt-BR', labelFormatter);
+            }
+        });
+
+        const chartData = sortedKeys.map(key => counts[key]);
         const ctx = document.getElementById('periodChart').getContext('2d');
+
         charts.period = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: sortedLabels.map(d => new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{month:'short', day:'numeric'})),
+                labels: chartLabels,
                 datasets: [{
-                    label: 'Resgates', data: sortedLabels.map(label => counts[label]), borderColor: 'var(--accent-primary)',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.3, pointRadius: 2, pointHoverRadius: 5
+                    label: 'Resgates',
+                    data: chartData,
+                    borderColor: 'var(--accent-primary)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: chartData.length > 1 ? 2 : 5,
+                    pointHoverRadius: 5
                 }]
             },
             options: {
-                responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-                scales: { x: { grid: { color: colors.grid } }, y: { beginAtZero: true, grid: { color: colors.grid }, ticks: { precision: 0 } } }
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: colors.grid } },
+                    y: { beginAtZero: true, grid: { color: colors.grid }, ticks: { precision: 0 } }
+                }
             }
         });
     }
@@ -830,7 +880,7 @@
                     y: { grid: { color: 'transparent' } }
                 }
             },
-            plugins: [ChartDataLabels] // <-- Registra o plugin APENAS para este gráfico
+            plugins: [ChartDataLabels]
         });
     }
 
@@ -871,7 +921,7 @@
                         formatter: (value) => {
                             if (totalSnakes === 0) return '';
                             const percentage = (value / totalSnakes) * 100;
-                            if (percentage < 5) return ''; // Esconde se a fatia for muito pequena
+                            if (percentage < 5) return '';
                             return percentage.toFixed(1) + '%';
                         },
                         color: '#fff',
@@ -879,7 +929,7 @@
                     }
                 }
             },
-            plugins: [ChartDataLabels] // <-- Registra o plugin APENAS para este gráfico
+            plugins: [ChartDataLabels]
         });
     }
 
@@ -939,7 +989,6 @@
     }
 
     function createCorrelationChart(colors) {
-        // 1. Process data: group by hour, then by animal type
         const hourlyAnimalCounts = {};
         filteredData.forEach(rescue => {
             if (rescue.time) {
@@ -954,7 +1003,6 @@
             }
         });
 
-        // 2. Calculate percentages for each hour
         const hourlyPercentages = {};
         for (const hour in hourlyAnimalCounts) {
             const totalForHour = Object.values(hourlyAnimalCounts[hour]).reduce((sum, count) => sum + count, 0);
@@ -966,7 +1014,6 @@
             }
         }
 
-        // 3. Prepare datasets for Chart.js
         const datasets = Object.keys(animalConfig).map(animalKey => {
             const data = Array.from({length: 24}, (_, i) => {
                 return (hourlyPercentages[i] && hourlyPercentages[i][animalKey]) ? hourlyPercentages[i][animalKey] : 0;
@@ -978,7 +1025,6 @@
             };
         }).filter(dataset => dataset.data.some(d => d > 0));
 
-        // 4. Create the chart
         const labels = Array.from({length: 24}, (_, i) => `${String(i).padStart(2, '0')}h`);
         const ctx = document.getElementById('correlationChart').getContext('2d');
         charts.correlation = new Chart(ctx, {
@@ -1124,4 +1170,3 @@
     </script>
 </body>
 </html>
-
